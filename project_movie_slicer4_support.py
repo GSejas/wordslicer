@@ -187,14 +187,15 @@ def add_media_2_db_thread():
                     else:
                         datastore[word]=[[media_name, startt, endt, dur, word_list, minivid_name]]
 
-
+                if subs_index==20:
+                    break
 
         # create subprocesses to process the multiple mini vids
         count = 1
         total_minivids = len(MOVIE_ARG_LIST)
         print(total_minivids)
         start = time.time()
-        with multiprocessing.Pool(1) as pool:
+        with multiprocessing.Pool(3) as pool:
             for res in pool.imap_unordered(split_video, MOVIE_ARG_LIST):
                 if media_processing_state:
                     vprogress_percentage = (count/total_minivids)*100
@@ -241,9 +242,9 @@ def split_video(args):
 
 def _split_video(StartTime, StopTime, Duration, fullp_video, OutVideoName, subtext):
     ext = ".webm"
-    # ext = ".mp4"
+    #ext = ".mp4"
 
-    OutVideoName_mp4_relpath = "TMP/"+OutVideoName+ext
+    OutVideoName_mp4_relpath = "TMP/"+OutVideoName+".mp4"
     video_with_subs_name = OutVideoName_mp4_relpath + "subs." + ext
     video_gif_with_subs_name = OutVideoName_mp4_relpath + "subs." + ext + ".gif"
     subtitle_filename = "TMP/" + OutVideoName + ".srt"
@@ -290,15 +291,7 @@ def _split_video(StartTime, StopTime, Duration, fullp_video, OutVideoName, subte
                     '-avoid_negative_ts', 'make_zero',
                     OutVideoName_mp4_relpath]
 
-
-    # if VidFileExists:
-    #     if os.stat(OutVideoName_mp4_relpath).st_size != 0:
-    #         process_to_execute(cmdFFPEG)
-    # else:
     process_to_execute(cmdFFPEG)
-
-
-    vid_filter_optns = ["subtitles=" + subtitle_filename, "fps=30", "scale=320:-1"]
 
     # if subtitle doesnt exist, create it
     if not os.path.isfile(subtitle_filename):
@@ -313,28 +306,40 @@ def _split_video(StartTime, StopTime, Duration, fullp_video, OutVideoName, subte
         unit_subtitle = pysubs2.SSAFile.from_string(subtitle_info)
         unit_subtitle.save(subtitle_filename)
 
+    # make options for filtered video with subs
+    vid_filter_optns = ["subtitles=" + subtitle_filename, "fps=30", "scale=320:-1"]
 
+    # make command for filtered video with subs
     cmdFFPEG_addSUBS = [FFMPEG_BIN,
                         '-y',
                         '-i', OutVideoName_mp4_relpath,
                         '-vf',",".join(vid_filter_optns),
                         '-strict','-2',
                         video_with_subs_name]
-    cmdFFPEG_gen_GIF = [FFMPEG_BIN,
+
+    # process filtered video with subs
+    process_to_execute(cmdFFPEG_addSUBS)
+    
+    vid_filter_optns2 = ["fps=30", "scale=320:-1"]
+
+    cmdFFPEG_make_Webm = [FFMPEG_BIN,
                         '-y',
                         '-i', OutVideoName_mp4_relpath,
-                        '-vf',",".join(vid_filter_optns),
+                        '-vf',",".join(vid_filter_optns2),
                         '-strict','-2',
-                        video_gif_with_subs_name]
+                        OutVideoName_mp4_relpath+".webm"]
 
-    # if os.path.isfile(video_with_subs_name):
-    #     if os.stat(video_with_subs_name).st_size != 0 :
-    #         process_to_execute(cmdFFPEG_addSUBS)
-    #         process_to_execute(cmdFFPEG_gen_GIF)
-    # else:
+    process_to_execute(cmdFFPEG_make_Webm)
 
-    process_to_execute(cmdFFPEG_addSUBS)
-    process_to_execute(cmdFFPEG_gen_GIF)
+    if 0:
+        cmdFFPEG_gen_GIF = [FFMPEG_BIN,
+                            '-y',
+                            '-i', OutVideoName_mp4_relpath,
+                            '-vf',",".join(vid_filter_optns),
+                            '-strict','-2',
+                            video_gif_with_subs_name]
+
+        process_to_execute(cmdFFPEG_gen_GIF)
 
 # function to retrieve the final size of video
 def read_video_length(VideoPath):
